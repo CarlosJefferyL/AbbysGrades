@@ -2,11 +2,30 @@
 # TLS solo (Let's Encrypt) para el dominio de DOMINIO. Para el VPS compartido
 # de JeffCo (Coolify + Traefik) se usa docker-compose.coolify.yml.
 services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      CLAVE_ACCESO: ${CLAVE_ACCESO:?falta CLAVE_ACCESO (la contraseña para entrar a la app)}
+      SECRET_KEY: ${SECRET_KEY:?falta SECRET_KEY (openssl rand -hex 32)}
+      COOKIE_SEGURA: "true"
+    volumes:
+      - datos:/datos
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/salud').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   web:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
     restart: unless-stopped
+    depends_on:
+      - api
     environment:
       DOMINIO: ${DOMINIO:?falta DOMINIO (el dominio que apunta a este servidor)}
     ports:
@@ -19,5 +38,6 @@ services:
       - caddy_config:/config
 
 volumes:
+  datos:
   caddy_datos:
   caddy_config:

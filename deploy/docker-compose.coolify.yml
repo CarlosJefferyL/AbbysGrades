@@ -1,8 +1,7 @@
 # Despliegue de Abby's Grades en un VPS COMPARTIDO gestionado por Coolify + Traefik.
 #
-# Este stack es UN solo servicio: Caddy sirviendo la página estática. No hay
-# API ni base de datos: los datos viven en el navegador de quien usa la
-# aplicación (localStorage), no en este servidor.
+# Dos servicios: `api` (guarda las calificaciones en el volumen `datos`) y
+# `web` (Caddy sirviendo la página y reenviando /api a la API).
 #
 # Diferencias frente a docker-compose.prod.yml (pensado para un VPS DEDICADO
 # donde Caddy es dueño de 80/443 y saca su propio TLS):
@@ -14,9 +13,9 @@
 #     termina el TLS afuera** y reenvía https://<dominio> -> web:80.
 #   - El dominio se asigna al servicio `web` desde Coolify (ver
 #     deploy/DEPLOY-COOLIFY.md), no aquí, para no fijar el hostname en git.
-#   - Techo de memoria para convivir con las demás apps del VPS.
+#   - Techos de memoria para convivir con las demás apps del VPS.
 services:
-  web:
+  api:
     build:
       # `context: .` (no `..`): Coolify construye con --project-directory = raíz
       # del repo, así que la ruta relativa se resuelve desde la raíz. Con `..`
@@ -24,8 +23,34 @@ services:
       # Este archivo está pensado para que lo construya Coolify, no para
       # `docker compose` a mano desde deploy/.
       context: .
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      # Las dos son obligatorias: sin contraseña la app quedaría abierta a
+      # internet, y sin SECRET_KEY propio las sesiones se firmarían con un
+      # valor conocido. Si falta alguna, el contenedor no arranca y lo dice.
+      CLAVE_ACCESO: ${CLAVE_ACCESO:?falta CLAVE_ACCESO (la contraseña para entrar a la app)}
+      SECRET_KEY: ${SECRET_KEY:?falta SECRET_KEY (openssl rand -hex 32)}
+      # Cookie sólo por HTTPS: válido porque Traefik expone el sitio por HTTPS.
+      COOKIE_SEGURA: "true"
+    volumes:
+      # Aquí viven las calificaciones (calificaciones.json) y las copias
+      # diarias (respaldos/). Es lo único que hay que cuidar de este stack.
+      - datos:/datos
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/salud').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 128m
+
+  web:
+    build:
+      context: .
       dockerfile: deploy/Dockerfile.web
     restart: unless-stopped
+    depends_on:
+      - api
     environment:
       # Caddy escucha HTTP plano en :80 dentro del contenedor; el TLS lo hace
       # Traefik. NO poner aquí el hostname real: eso haría que Caddy intente
@@ -41,5 +66,6 @@ services:
     mem_limit: 64m
 
 volumes:
+  datos:
   caddy_datos:
   caddy_config:

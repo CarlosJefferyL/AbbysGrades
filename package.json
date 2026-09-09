@@ -4,8 +4,9 @@
   "description": "Sistema de calificaciones para clases de inglés: attendance, participation, homework, exam; parciales y final.",
   "private": true,
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "start": "npx --yes serve -l 8080 ."
+    "test": "node --test test/*.test.js api/test/*.test.js",
+    "start": "npx --yes serve -l 8080 .",
+    "start:api": "node api/servidor.js"
   },
   "license": "MIT"
 }
