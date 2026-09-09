@@ -1,0 +1,11 @@
+{
+  "name": "abbysgrades",
+  "version": "1.0.0",
+  "description": "Sistema de calificaciones para clases de inglés: attendance, participation, homework, exam; parciales y final.",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "start": "npx --yes serve -l 8080 ."
+  },
+  "license": "MIT"
+}

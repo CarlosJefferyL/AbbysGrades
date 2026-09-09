@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abby's Grades · Calificaciones</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Abby's Grades</h1>
+    <label>Grupo: <select id="group-select"></select></label>
+    <button data-action="group-new">＋ Grupo</button>
+    <button id="btn-config" data-action="group-config">⚙ Configurar grupo</button>
+    <span class="spacer"></span>
+    <button data-action="backup-export" title="Descarga un archivo .json con todos los grupos">Respaldar</button>
+    <button data-action="backup-import" title="Carga un respaldo .json">Restaurar</button>
+    <input type="file" id="file-import" accept=".json,application/json" hidden>
+  </header>
+  <main id="main"></main>
+  <div id="toast" class="toast"></div>
+  <script src="grades.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
