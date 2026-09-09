@@ -1,0 +1,14 @@
+{$DOMINIO} {
+	encode gzip
+	root * /srv
+
+	# La aplicación es una sola página sin rutas: cualquier ruta que no exista
+	# como archivo vuelve a index.html en vez de dar 404.
+	try_files {path} /index.html
+	file_server
+
+	# Sin caché: los archivos se sirven sin hash en el nombre, y con caché larga
+	# el navegador de la maestra seguiría corriendo la versión anterior después
+	# de un despliegue. Son cuatro archivos; el costo de no cachear es nulo.
+	header Cache-Control "no-cache"
+}

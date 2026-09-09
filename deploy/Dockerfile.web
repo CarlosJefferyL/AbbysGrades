@@ -1,0 +1,15 @@
+# Etapa de verificación: corre las pruebas de grades.js antes de empaquetar.
+# Si una prueba falla, la imagen no se construye y no se despliega una versión
+# que calcule mal las calificaciones.
+FROM node:22-slim AS pruebas
+WORKDIR /app
+COPY package.json grades.js ./
+COPY test/ ./test/
+RUN npm test
+
+# Imagen final: Caddy sirviendo los archivos estáticos. No hay build de
+# frontend (no hay bundler): los archivos se copian tal cual.
+FROM caddy:2-alpine
+COPY --from=pruebas /app/grades.js /srv/grades.js
+COPY index.html app.js styles.css /srv/
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
