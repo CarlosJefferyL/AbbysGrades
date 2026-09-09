@@ -1,0 +1,23 @@
+# Despliegue en un servidor DEDICADO: Caddy toma los puertos 80/443 y saca el
+# TLS solo (Let's Encrypt) para el dominio de DOMINIO. Para el VPS compartido
+# de JeffCo (Coolify + Traefik) se usa docker-compose.coolify.yml.
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      DOMINIO: ${DOMINIO:?falta DOMINIO (el dominio que apunta a este servidor)}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Certificados y estado de Caddy. Sin el volumen, cada reconstrucción
+      # pediría un certificado nuevo y Let's Encrypt limita cuántos da por semana.
+      - caddy_datos:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_datos:
+  caddy_config:

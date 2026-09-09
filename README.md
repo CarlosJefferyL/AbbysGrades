@@ -6,6 +6,9 @@ cuatro rubros por parcial —**Attendance**, **Participation**, **Homework** y
 
 Es una página web que funciona sin servidor: se abre `index.html` en el
 navegador y los datos se guardan en el propio navegador (`localStorage`).
+También está publicada en `https://abbysgrades.jeffco.mx` para abrirla desde
+cualquier dispositivo sin tener el archivo a la mano; los datos siguen viviendo
+en el navegador que los capturó (ver `DESARROLLO.md`).
 
 ## Cómo usarla
 
@@ -80,3 +83,13 @@ npm start         # sirve la carpeta en http://localhost:8080 (opcional)
 - `styles.css`, `index.html` — presentación.
 - `test/` — pruebas con `node:test`.
 - `tools/` — importador del Excel y comparador.
+
+## Despliegue
+
+La app se publica en el VPS de JeffCo con Coolify + Traefik, con la misma
+estructura que Danachem: `deploy/docker-compose.coolify.yml` levanta un solo
+servicio (Caddy sirviendo los archivos) y Traefik pone el TLS.
+
+- `deploy/DEPLOY-COOLIFY.md` — runbook paso a paso en Coolify (el camino normal).
+- `deploy/DEPLOY.md` — servidor dedicado y prueba local del paquete.
+- `DESARROLLO.md` — dónde vive cada pieza y cómo se trabaja sin computadora.

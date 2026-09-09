@@ -1,0 +1,13 @@
+# El contexto de build de deploy/Dockerfile.web es la raíz del repositorio.
+# Se excluye lo que no va en la imagen: dependencias locales, salidas de las
+# herramientas de importación (traen calificaciones reales) y documentación.
+**/node_modules/
+tools/output/
+*.xlsx
+*.json.bak
+.git/
+.gitignore
+.env
+.env.*
+docker-compose.override.yml
+*.md

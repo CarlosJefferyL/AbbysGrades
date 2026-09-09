@@ -1,0 +1,45 @@
+# Despliegue de Abby's Grades en un VPS COMPARTIDO gestionado por Coolify + Traefik.
+#
+# Este stack es UN solo servicio: Caddy sirviendo la página estática. No hay
+# API ni base de datos: los datos viven en el navegador de quien usa la
+# aplicación (localStorage), no en este servidor.
+#
+# Diferencias frente a docker-compose.prod.yml (pensado para un VPS DEDICADO
+# donde Caddy es dueño de 80/443 y saca su propio TLS):
+#
+#   - El servicio `web` NO publica 80/443. En un servidor Coolify, **Traefik ya
+#     es dueño de esos puertos** y enruta todas las apps por dominio; si Caddy
+#     intentara tomarlos, el arranque fallaría por conflicto de puertos.
+#   - Caddy sirve **HTTP plano por dentro** (DOMINIO=":80", sin ACME); **Traefik
+#     termina el TLS afuera** y reenvía https://<dominio> -> web:80.
+#   - El dominio se asigna al servicio `web` desde Coolify (ver
+#     deploy/DEPLOY-COOLIFY.md), no aquí, para no fijar el hostname en git.
+#   - Techo de memoria para convivir con las demás apps del VPS.
+services:
+  web:
+    build:
+      # `context: .` (no `..`): Coolify construye con --project-directory = raíz
+      # del repo, así que la ruta relativa se resuelve desde la raíz. Con `..`
+      # apuntaría un nivel ARRIBA de la raíz y no encontraría el Dockerfile.
+      # Este archivo está pensado para que lo construya Coolify, no para
+      # `docker compose` a mano desde deploy/.
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      # Caddy escucha HTTP plano en :80 dentro del contenedor; el TLS lo hace
+      # Traefik. NO poner aquí el hostname real: eso haría que Caddy intente
+      # sacar su propio certificado.
+      DOMINIO: ":80"
+    # `expose` (no `ports`): el 80 queda accesible SOLO en la red interna de
+    # Docker, que es por donde entra Traefik. No se publica nada en el host.
+    expose:
+      - "80"
+    volumes:
+      - caddy_datos:/data
+      - caddy_config:/config
+    mem_limit: 64m
+
+volumes:
+  caddy_datos:
+  caddy_config:
