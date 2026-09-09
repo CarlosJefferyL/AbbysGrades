@@ -49,6 +49,10 @@
   /** Garantiza que todos los campos existan (también para respaldos viejos). */
   function normalize(data) {
     if (!data || typeof data !== 'object') throw new Error('Formato inválido');
+    // El archivo del volumen del servidor (calificaciones.json) envuelve los
+    // datos en {version, actualizado, datos}; se acepta igual que un respaldo
+    // del botón «Respaldar» para poder restaurar directo desde una copia del VPS.
+    if (!Array.isArray(data.groups) && data.datos && typeof data.datos === 'object') data = data.datos;
     if (!Array.isArray(data.groups)) throw new Error('El archivo no contiene grupos');
     data.version = 1;
     for (const g of data.groups) {
