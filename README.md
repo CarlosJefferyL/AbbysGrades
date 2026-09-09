@@ -4,11 +4,13 @@ Sistema de calificaciones para clases de inglés con varios grupos. Lleva
 cuatro rubros por parcial —**Attendance**, **Participation**, **Homework** y
 **Exam**— y calcula las calificaciones parciales y la final.
 
-Es una página web que funciona sin servidor: se abre `index.html` en el
-navegador y los datos se guardan en el propio navegador (`localStorage`).
-También está publicada en `https://abbysgrades.jeffco.mx` para abrirla desde
-cualquier dispositivo sin tener el archivo a la mano; los datos siguen viviendo
-en el navegador que los capturó (ver `DESARROLLO.md`).
+Está publicada en `https://abbysgrades.jeffco.mx`: se entra con una
+contraseña y los datos se guardan en el servidor, así que se ve lo mismo desde
+la computadora y desde el celular (ver `DESARROLLO.md`).
+
+También funciona sin servidor: si se abre `index.html` a doble clic, los datos
+se guardan sólo en ese navegador (`localStorage`) y el indicador dice «Sólo en
+este navegador».
 
 ## Cómo usarla
 
@@ -27,8 +29,8 @@ en el navegador que los capturó (ver `DESARROLLO.md`).
 5. **Calificación final**: promedio de parciales, examen final, calificación
    necesaria en el examen final para aprobar, y calificación final.
 6. **Respaldar** descarga un `.json` con todo; **Restaurar** lo vuelve a cargar
-   (en otra computadora, o después de limpiar el navegador). Conviene respaldar
-   seguido: los datos viven en el navegador donde se capturaron.
+   (acepta también el `calificaciones.json` del servidor). Conviene respaldar al
+   cierre de cada parcial para tener una copia fuera del servidor.
 7. **Exportar CSV** / **Imprimir** en los resúmenes.
 
 ## Cómo se calcula
@@ -74,21 +76,23 @@ tenía calculados, para confirmar que las fórmulas coinciden.
 ## Desarrollo
 
 ```bash
-npm test          # pruebas de la lógica de cálculo (grades.js)
-npm start         # sirve la carpeta en http://localhost:8080 (opcional)
+npm test          # pruebas del cálculo (grades.js) y de la API
+npm start         # sirve la carpeta en http://localhost:8080, modo local (opcional)
 ```
 
 - `grades.js` — cálculo de calificaciones, sin dependencias de la interfaz.
-- `app.js` — interfaz, almacenamiento local, respaldo, CSV.
+- `app.js` — interfaz, sincronización con el servidor, respaldo, CSV.
+- `api/servidor.js` — API en Node sin dependencias: contraseña, guardado con
+  control de versión, copia diaria.
 - `styles.css`, `index.html` — presentación.
-- `test/` — pruebas con `node:test`.
+- `test/`, `api/test/` — pruebas con `node:test`.
 - `tools/` — importador del Excel y comparador.
 
 ## Despliegue
 
 La app se publica en el VPS de JeffCo con Coolify + Traefik, con la misma
-estructura que Danachem: `deploy/docker-compose.coolify.yml` levanta un solo
-servicio (Caddy sirviendo los archivos) y Traefik pone el TLS.
+estructura que Danachem: `deploy/docker-compose.coolify.yml` levanta la API y
+Caddy (que sirve la página y reenvía `/api`), y Traefik pone el TLS.
 
 - `deploy/DEPLOY-COOLIFY.md` — runbook paso a paso en Coolify (el camino normal).
 - `deploy/DEPLOY.md` — servidor dedicado y prueba local del paquete.

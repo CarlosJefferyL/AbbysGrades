@@ -5,3 +5,5 @@ tools/output/
 .env
 .env.prueba-local
 docker-compose.override.yml
+datos-local/
+respaldos/

@@ -1,0 +1,23 @@
+FROM node:22-slim
+WORKDIR /app
+
+# Sin dependencias de npm: sólo se copian el servidor y sus pruebas.
+COPY package.json ./
+COPY api/ ./api/
+
+# Las pruebas corren en el build: si fallan, no hay imagen que desplegar.
+RUN node --test api/test/*.test.js
+
+ENV DIRECTORIO_DATOS=/datos
+ENV PUERTO=8000
+ENV NODE_ENV=production
+
+# Usuario sin privilegios. /datos se crea aquí con ese dueño para que el
+# volumen nombrado, al montarse vacío la primera vez, herede el permiso de
+# escritura (Docker copia dueño y contenido del directorio de la imagen).
+RUN useradd --uid 10001 --create-home abbysgrades && mkdir -p /datos \
+    && chown -R 10001 /datos /app
+USER 10001
+
+EXPOSE 8000
+CMD ["node", "api/servidor.js"]

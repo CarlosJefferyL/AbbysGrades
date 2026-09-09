@@ -11,3 +11,5 @@ tools/output/
 .env.*
 docker-compose.override.yml
 *.md
+datos-local/
+respaldos/
