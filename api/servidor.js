@@ -129,6 +129,9 @@ function crearServidor(config) {
     const hoy = new Date().toISOString().slice(0, 10);
     const destino = path.join(directorioRespaldos, `calificaciones-${hoy}.json`);
     if (fs.existsSync(destino) || !fs.existsSync(archivoDatos)) return;
+    // Se recrea por si alguien borró la carpeta a mano: sin ella, copyFile
+    // falla con un ENOENT que señala al archivo de origen y despista.
+    await fsp.mkdir(directorioRespaldos, { recursive: true });
     await fsp.copyFile(archivoDatos, destino);
     const viejos = (await fsp.readdir(directorioRespaldos)).filter((n) => n.startsWith('calificaciones-')).sort();
     for (const n of viejos.slice(0, Math.max(0, viejos.length - RESPALDOS_A_CONSERVAR))) {

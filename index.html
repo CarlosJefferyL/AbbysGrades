@@ -13,11 +13,22 @@
     <button data-action="group-new">＋ Grupo</button>
     <button id="btn-config" data-action="group-config">⚙ Configurar grupo</button>
     <span class="spacer"></span>
+    <span id="sync-estado" class="sync"></span>
     <button data-action="backup-export" title="Descarga un archivo .json con todos los grupos">Respaldar</button>
     <button data-action="backup-import" title="Carga un respaldo .json">Restaurar</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
+    <button id="btn-salir" data-action="salir" hidden>Salir</button>
   </header>
   <main id="main"></main>
+  <div id="acceso" class="acceso" hidden>
+    <form id="acceso-form">
+      <h1>Abby's Grades</h1>
+      <p>Escribe la contraseña para entrar.</p>
+      <input type="password" id="acceso-clave" autocomplete="current-password" required>
+      <button class="primary" type="submit">Entrar</button>
+      <p class="error" id="acceso-error"></p>
+    </form>
+  </div>
   <div id="toast" class="toast"></div>
   <script src="grades.js"></script>
   <script src="app.js"></script>

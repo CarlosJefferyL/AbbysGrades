@@ -155,6 +155,12 @@ test('guarda una copia diaria antes de sobreescribir', async () => {
     assert.equal(copias.length, 1, 'una sola copia por día');
     const copia = JSON.parse(fs.readFileSync(path.join(dir, 'respaldos', copias[0]), 'utf8'));
     assert.equal(copia.datos.groups[0].name, 'primero', 'la copia es lo que había ANTES de la primera sobreescritura del día');
+
+    // Si alguien borra la carpeta de respaldos a mano, guardar sigue funcionando
+    // y la copia del día se vuelve a crear.
+    fs.rmSync(path.join(dir, 'respaldos'), { recursive: true });
+    assert.equal((await poner(3, 'cuarto')).status, 200);
+    assert.equal(fs.readdirSync(path.join(dir, 'respaldos')).length, 1);
   } finally {
     await s.cerrar();
   }

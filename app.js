@@ -27,10 +27,22 @@
   }
 
   function save() {
+    guardarLocal();
+    if (sync.modo === 'servidor') {
+      sync.pendiente = true;
+      // La marca sobrevive a cerrar la pestaña: si la subida no alcanzó a
+      // salir, el siguiente arranque la reintenta en vez de perder el cambio.
+      try { localStorage.setItem(PENDIENTE_KEY, '1'); } catch (e) { /* sin almacenamiento local no hay nada que marcar */ }
+      programarEnvio();
+    }
+  }
+
+  function guardarLocal() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(VERSION_KEY, String(sync.version));
     } catch (e) {
-      toast('No se pudo guardar (almacenamiento lleno o bloqueado)');
+      toast('No se pudo guardar en este navegador (almacenamiento lleno o bloqueado)');
     }
   }
 
@@ -98,6 +110,224 @@
   function commit() {
     save();
     render();
+  }
+
+  // ------------------------------------------------------------ servidor
+  // La app guarda en localStorage (rápido, y funciona sin servidor: abrir
+  // index.html a doble clic sigue sirviendo) y, cuando hay servidor, sube el
+  // estado completo con un número de versión. El servidor es la fuente de
+  // verdad entre dispositivos; el navegador es la copia de trabajo.
+  const VERSION_KEY = 'abbysgrades.version';
+  const PENDIENTE_KEY = 'abbysgrades.pendiente';
+  const ESPERA_ENVIO_MS = 700;
+  const sync = {
+    modo: 'local',      // 'local' (sin servidor) | 'servidor'
+    version: 0,         // versión del servidor sobre la que está construido `state`
+    pendiente: false,   // hay cambios locales sin subir
+    enviando: false,
+    timer: null,
+    reintento: 2000,    // espera antes de reintentar sin conexión; crece hasta un minuto
+  };
+
+  function api(ruta, opciones = {}) {
+    return fetch(ruta, Object.assign({ credentials: 'same-origin' }, opciones, {
+      headers: Object.assign({ 'Content-Type': 'application/json' }, opciones.headers || {}),
+    }));
+  }
+
+  const TEXTO_ESTADO = {
+    local: 'Sólo en este navegador',
+    cargando: 'Cargando…',
+    guardando: 'Guardando…',
+    guardado: 'Guardado en el servidor',
+    sinconexion: 'Sin conexión: se guardará al reconectar',
+    acceso: '',
+  };
+
+  function ponerEstado(clave) {
+    const el = document.getElementById('sync-estado');
+    el.textContent = TEXTO_ESTADO[clave];
+    el.className = 'sync ' + clave;
+    document.getElementById('btn-salir').hidden = sync.modo !== 'servidor';
+  }
+
+  async function iniciar() {
+    let r = null;
+    try { r = await fetch('/api/sesion', { credentials: 'same-origin' }); } catch (e) { /* sin servidor */ }
+    if (!r || (r.status !== 204 && r.status !== 401)) {
+      // Archivo abierto a doble clic, o `npm start` sin API: sólo este navegador.
+      sync.modo = 'local';
+      ponerEstado('local');
+      return render();
+    }
+    sync.modo = 'servidor';
+    sync.version = Number(localStorage.getItem(VERSION_KEY)) || 0;
+    if (r.status === 401) return mostrarAcceso();
+    await cargarDelServidor();
+  }
+
+  async function cargarDelServidor() {
+    ocultarAcceso();
+    ponerEstado('cargando');
+    let r;
+    try { r = await api('/api/datos'); } catch (e) { render(); return sinConexion(); }
+    if (r.status === 401) return mostrarAcceso();
+    if (!r.ok) { render(); return sinConexion(); }
+    const remoto = await r.json();
+    const pendienteLocal = localStorage.getItem(PENDIENTE_KEY) === '1';
+
+    if (remoto.datos === null && state.groups.length) {
+      // Primer arranque con servidor: lo capturado en este navegador se sube tal cual.
+      sync.version = 0;
+      sync.pendiente = true;
+      render();
+      await enviar();
+      if (!sync.pendiente) toast('Los datos de este navegador se subieron al servidor');
+      return;
+    }
+    if (pendienteLocal && remoto.version === sync.version) {
+      // Cambios hechos sin conexión sobre la misma versión que tiene el servidor.
+      sync.pendiente = true;
+      render();
+      return enviar();
+    }
+    if (remoto.datos !== null) adoptar(remoto);
+    else sync.version = remoto.version;
+    localStorage.removeItem(PENDIENTE_KEY);
+    ponerEstado('guardado');
+    render();
+    if (pendienteLocal) toast('Había cambios más recientes en el servidor; se cargaron esos');
+  }
+
+  /** Reemplaza el estado por lo que tiene el servidor. */
+  function adoptar(remoto) {
+    state = normalize(remoto.datos);
+    sync.version = remoto.version;
+    sync.pendiente = false;
+    guardarLocal();
+    const g = activeGroup();
+    if (ui.tab === 'partial' && !(g && g.partials.some((p) => p.id === ui.partialId))) {
+      ui.tab = 'students';
+      ui.partialId = null;
+    }
+  }
+
+  function programarEnvio() {
+    clearTimeout(sync.timer);
+    sync.timer = setTimeout(enviar, ESPERA_ENVIO_MS);
+  }
+
+  async function enviar() {
+    if (sync.modo !== 'servidor' || !sync.pendiente || sync.enviando) return;
+    clearTimeout(sync.timer);
+    sync.enviando = true;
+    sync.pendiente = false;
+    ponerEstado('guardando');
+    let r;
+    try {
+      r = await api('/api/datos', { method: 'PUT', body: JSON.stringify({ version: sync.version, datos: state }) });
+    } catch (e) {
+      sync.enviando = false;
+      sync.pendiente = true;
+      return sinConexion();
+    }
+    sync.enviando = false;
+    if (r.status === 200) {
+      sync.version = (await r.json()).version;
+      sync.reintento = 2000;
+      if (sync.pendiente) return programarEnvio(); // hubo cambios mientras subía
+      localStorage.removeItem(PENDIENTE_KEY);
+      guardarLocal();
+      return ponerEstado('guardado');
+    }
+    if (r.status === 409) {
+      // Otro dispositivo guardó primero. Se toma lo del servidor: es un solo
+      // documento y no hay forma segura de mezclar dos versiones a ciegas.
+      adoptar(await r.json());
+      localStorage.removeItem(PENDIENTE_KEY);
+      ponerEstado('guardado');
+      render();
+      return toast('Otro dispositivo guardó cambios más recientes; se cargaron esos. Repite tu último cambio.');
+    }
+    sync.pendiente = true;
+    if (r.status === 401) return mostrarAcceso();
+    return sinConexion();
+  }
+
+  function sinConexion() {
+    ponerEstado('sinconexion');
+    clearTimeout(sync.timer);
+    sync.timer = setTimeout(() => (sync.pendiente ? enviar() : refrescar()), sync.reintento);
+    sync.reintento = Math.min(sync.reintento * 2, 60000);
+  }
+
+  /** Trae lo del servidor si cambió (al volver a la pestaña, al enfocar, cada minuto). */
+  async function refrescar() {
+    if (sync.modo !== 'servidor' || sync.pendiente || sync.enviando || ui.modal || document.hidden) return;
+    const activo = document.activeElement;
+    if (activo && activo.matches && activo.matches('input, textarea')) return; // no pisar lo que se está escribiendo
+    let r;
+    try { r = await api('/api/datos'); } catch (e) { return; }
+    if (r.status === 401) return mostrarAcceso();
+    if (!r.ok) return;
+    const remoto = await r.json();
+    if (remoto.datos !== null && remoto.version !== sync.version) {
+      adoptar(remoto);
+      render();
+      toast('Actualizado con los cambios de otro dispositivo');
+    }
+    ponerEstado('guardado');
+  }
+
+  function mostrarAcceso() {
+    ponerEstado('acceso');
+    document.getElementById('acceso').hidden = false;
+    document.getElementById('acceso-error').textContent = '';
+    setTimeout(() => document.getElementById('acceso-clave').focus(), 0);
+  }
+
+  function ocultarAcceso() {
+    document.getElementById('acceso').hidden = true;
+  }
+
+  async function entrar(clave) {
+    const error = document.getElementById('acceso-error');
+    error.textContent = '';
+    let r;
+    try {
+      r = await api('/api/sesion', { method: 'POST', body: JSON.stringify({ clave }) });
+    } catch (e) {
+      error.textContent = 'No hay conexión con el servidor';
+      return;
+    }
+    if (r.status === 204) {
+      document.getElementById('acceso-clave').value = '';
+      if (sync.pendiente) {
+        // La sesión caducó con cambios sin subir: primero se suben, sin recargar encima.
+        ocultarAcceso();
+        render();
+        return enviar();
+      }
+      return cargarDelServidor();
+    }
+    const cuerpo = await r.json().catch(() => ({}));
+    error.textContent = cuerpo.error || 'No se pudo entrar';
+  }
+
+  async function salir() {
+    if (sync.pendiente) await enviar();
+    if (sync.pendiente && !confirm('No se pudieron subir los últimos cambios. ¿Salir de todos modos y perderlos?')) return;
+    try { await api('/api/sesion', { method: 'DELETE' }); } catch (e) { /* la cookie caduca sola */ }
+    // En una computadora compartida no debe quedar la copia local.
+    for (const k of [STORAGE_KEY, VERSION_KEY, PENDIENTE_KEY]) localStorage.removeItem(k);
+    state = { version: 1, groups: [], activeGroupId: null };
+    sync.version = 0;
+    sync.pendiente = false;
+    ui.tab = 'students';
+    ui.partialId = null;
+    ui.modal = null;
+    render();
+    mostrarAcceso();
   }
 
   // ------------------------------------------------------------ utilidades
@@ -702,6 +932,8 @@
         return toast('Respaldo descargado');
       case 'backup-import':
         return document.getElementById('file-import').click();
+      case 'salir':
+        return salir();
       case 'import-replace':
         state = ui.modal.data;
         ui.modal = null;
@@ -843,9 +1075,18 @@
     if (e.key === 'Escape' && ui.modal) { ui.modal = null; render(); }
   });
 
-  window.addEventListener('DOMContentLoaded', render);
-  if (document.readyState !== 'loading') render();
+  document.getElementById('acceso-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    entrar(document.getElementById('acceso-clave').value);
+  });
+  document.addEventListener('visibilitychange', () => (document.hidden ? enviar() : refrescar()));
+  window.addEventListener('focus', refrescar);
+  window.addEventListener('online', () => (sync.pendiente ? enviar() : refrescar()));
+  setInterval(refrescar, 60000);
+
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', iniciar);
+  else iniciar();
 
   // Para depuración desde la consola.
-  window.AbbysGrades = { get state() { return state; }, render, normalize };
+  window.AbbysGrades = { get state() { return state; }, get sync() { return sync; }, render, normalize };
 })();
